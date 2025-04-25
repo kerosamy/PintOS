@@ -84,6 +84,12 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+bool 
+lessthan(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  int a1=list_entry(a,struct thread,elem)->priority;
+  int b1=list_entry(b,struct thread,elem)->priority;
+  return a1<b1; 
+}      
 void
 thread_init (void) 
 {
@@ -200,7 +206,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  thread_yield();
   return tid;
 }
 
@@ -333,11 +339,20 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_priority (int new_priority) 
+thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
-}
+  struct thread *thread = thread_current ();
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  if (thread->priority == thread->originalPriority || new_priority > thread->priority)
+    thread->priority = new_priority;  
+  thread->originalPriority = new_priority;
+  intr_set_level (old_level); 
 
+  struct list_elem *max_elem = list_max(&ready_list, lessthan, NULL);
+  int max_priority =  list_entry (max_elem, struct thread, elem)->originalPriority;
+  thread_yield ();
+}
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
@@ -463,7 +478,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
+  t->originalPriority = priority;
+  t->isDonated = false;
+  list_init (&t->holdedLocks);
+  list_init (&t->priOfHoldedLocks);
+  list_init (&t->wantedLocks);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -492,8 +511,11 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  else{
+    struct list_elem *next_thread = list_max (&ready_list, lessthan, NULL);
+    list_remove(next_thread);
+    return list_entry(next_thread,struct thread,elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
