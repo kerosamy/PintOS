@@ -343,23 +343,21 @@ thread_set_priority (int new_priority)
 {
   enum intr_level old_level;
   struct thread *thread = thread_current ();
-
+  printf("\n%d %d\n",thread->priority,thread->originalPriority); 
   old_level = intr_disable ();
   
   if (new_priority > thread->priority||thread->originalPriority==thread->priority)
     thread->priority = new_priority;  
   thread->originalPriority = new_priority;
+   
   intr_set_level (old_level); 
-
-  struct list_elem *max_elem = list_max(&ready_list, lessthan, NULL);
-  int max_priority =  list_entry (max_elem, struct thread, elem)->priority;
-  if(thread->priority < max_priority)
   thread_yield ();
 }
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
+ 
   return thread_current ()->priority;
 }
 
