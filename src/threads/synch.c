@@ -206,10 +206,6 @@ update_priorities (struct lock *lock) {
   for (struct list_elem *e = list_begin (&lock->holder->wantedLocks); e != list_end (&lock->holder->wantedLocks); e = list_next (e)) {
     struct lock *l = list_entry (e, struct lock, wantMe);
     if (l->holder->priority < lock->holder->priority){
-      if (!l->holder->isDonated){
-        l->holder->isDonated = true;
-        l->holder->originalPriority = l->holder->priority;
-      }
       l->holder->priority = lock->holder->priority;
     }
     update_priorities (l);
@@ -224,6 +220,27 @@ update_priorities (struct lock *lock) {
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
+
+   // for (struct list_elem *e = list_begin (&lock->holder->holdedLocks); e != list_end (&lock->holder->holdedLocks); e = list_next (e)) {
+  //    i++;
+  //    struct lock *l = list_entry (e, struct lock, holdMe);
+  //    if (l==lock){
+  //      list_remove (e);
+  //      break;
+  //    }
+  //  }
+  //  struct list_elem *e = list_begin (&lock->holder->priOfHoldedLocks);
+  //  for ( int j=0; j < i; j++)
+  //  {
+  //    e = list_next (e);
+  //  }
+  //  list_remove (e);
+  //  if (list_empty (&lock->holder->priOfHoldedLocks)) lock->holder->priority = lock->holder->originalPriority;
+  //  else{
+  //    // set priority as max value in priOfHoldedLocks
+  //    struct thread *t = list_entry(list_max(&lock->holder->priOfHoldedLocks, compare_priority, NULL) , struct thread , pri);
+  //    lock->holder->priority = t->priority;
+  // }
 void
 lock_acquire (struct lock *lock)
 {
@@ -234,11 +251,12 @@ lock_acquire (struct lock *lock)
   if ( lock->holder->priority < thread_current()->priority ) {
     lock->holder->priority = thread_current()->priority;
     }
+    list_push_back(&(thread_current()->wantedLocks), &(lock->wantMe));
+    update_priorities (lock);
   }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   list_push_back(&(thread_current()->holdedLocks), &(lock->holdMe));
-  thread_yield();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -282,10 +300,13 @@ lock_release (struct lock *lock)
   if(!list_empty(&thread_current()->holdedLocks))  {
         struct lock *l=list_entry(list_max(&thread_current()->holdedLocks,compare_priority,NULL),struct lock,holdMe);
         thread_current()->priority=list_entry(list_max(&l->semaphore.waiters,lessfor,NULL),struct thread,elem)->priority;
+  }else{
+    thread_current()->priority=thread_current()->originalPriority;
   }
   
-  if(thread_current()->originalPriority>thread_current()->priority);
-  thread_current()->priority=thread_current()->originalPriority; 
+  if(thread_current()->originalPriority>thread_current()->priority){
+    thread_current()->priority=thread_current()->originalPriority;
+  }
 
   lock->holder=NULL;
   sema_up (&lock->semaphore);
