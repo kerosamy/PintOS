@@ -32,11 +32,23 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
+
+static struct list sleeping_threads;
+
+   /* A new data structure will be created 
+     to keep track of each blocked thread & its wake up time*/
+     struct sleep_handler {
+      struct list_elem elem;
+      int64_t wakeup_time;
+      struct semaphore blocker;
+      struct thread *thread;  // Add this to access the thread's priority
+  };
 void
 timer_init (void) 
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init(&sleeping_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -87,15 +99,48 @@ timer_elapsed (int64_t then)
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
-timer_sleep (int64_t ticks) 
-{
-  int64_t start = timer_ticks ();
-
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-}
-
+timer_sleep (int64_t ticks)
+   {
+       int64_t start = timer_ticks ();
+       ASSERT (intr_get_level () == INTR_ON);
+       
+       if (ticks <= 0)
+           return;
+           
+       struct sleep_handler *sleeper = malloc(sizeof(struct sleep_handler));
+       if (sleeper == NULL) {
+           return;
+       }
+       
+       sleeper->wakeup_time = start + ticks;
+       sleeper->thread = thread_current();  // Store current thread
+       sema_init(&sleeper->blocker, 0);
+       
+       enum intr_level old_level = intr_disable();
+       
+       struct list_elem *index;
+       for (index = list_begin(&sleeping_threads); 
+            index != list_end(&sleeping_threads); 
+            index = list_next(index)) {
+           struct sleep_handler *current = list_entry(index, struct sleep_handler, elem);
+           
+           // First compare by priority (higher priority first)
+           if (sleeper->thread->priority > current->thread->priority)
+               break;
+               
+           // If priorities are equal, then compare by wake-up time
+           if (sleeper->thread->priority == current->thread->priority && 
+               sleeper->wakeup_time < current->wakeup_time)
+               break;
+       }
+       
+       list_insert(index, &sleeper->elem);
+       intr_set_level(old_level);
+       
+       sema_down(&sleeper->blocker);
+       
+       free(sleeper);
+   }
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
 void
@@ -170,10 +215,26 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
-  thread_tick ();
+    ticks++;
+    thread_tick ();
+    
+    enum intr_level old_level = intr_disable();
+    
+    struct list_elem *e = list_begin(&sleeping_threads);
+    while (e != list_end(&sleeping_threads)) {
+        struct sleep_handler *sleeper = list_entry(e, struct sleep_handler, elem);
+        
+        if (sleeper->wakeup_time <= ticks) {
+            e = list_remove(e);  // Remove and get the next element
+            sema_up(&sleeper->blocker);
+        } else {
+            // Move to the next element
+            e = list_next(e);
+        }
+    }
+    
+    intr_set_level(old_level);
 }
-
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */
 static bool
