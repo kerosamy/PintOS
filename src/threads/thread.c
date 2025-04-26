@@ -350,7 +350,8 @@ thread_set_priority (int new_priority)
   intr_set_level (old_level); 
 
   struct list_elem *max_elem = list_max(&ready_list, lessthan, NULL);
-  int max_priority =  list_entry (max_elem, struct thread, elem)->originalPriority;
+  int max_priority =  list_entry (max_elem, struct thread, elem)->priority;
+  if(thread->priority < max_priority)
   thread_yield ();
 }
 /* Returns the current thread's priority. */

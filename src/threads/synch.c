@@ -36,7 +36,7 @@ bool
 less(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
   int a1=list_entry(a,struct semaphore_elem,elem)->pri;
   int b1=list_entry(b,struct semaphore_elem,elem)->pri;
-  return a1<b1; 
+  return a1<b1;
 }
 bool 
 lessfor(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
@@ -226,16 +226,14 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock)); // lw nzlna l t7t ---> ezn el holder m4 el current thread  
-  if (lock->holder !=NULL)list_push_back(&(thread_current()->wantedLocks), &(lock->wantMe)); 
+  if (lock->holder !=NULL) {list_push_back(&(thread_current()->wantedLocks), &(lock->wantMe)); 
   if ( lock->holder->priority < thread_current()->priority ) {
     if (!lock->holder-> isDonated){
       lock->holder->isDonated = true;
-      lock->holder->originalPriority = lock->holder->priority;
     }
     lock->holder->priority = thread_current()->priority;
-    update_priorities(lock);
   }
-  
+  }
   
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
@@ -278,29 +276,29 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
   int i = 0 ;
-  for (struct list_elem *e = list_begin (&lock->holder->holdedLocks); e != list_end (&lock->holder->holdedLocks); e = list_next (e)) {
-    i++;
-    struct lock *l = list_entry (e, struct lock, holdMe);
-    if (l==lock){
-      list_remove (e);
-      break;
-    }
-  }
-  struct list_elem *e = list_begin (&lock->holder->priOfHoldedLocks);
-  for ( int j=0; j < i; j++)
-  {
-    e = list_next (e);
-  }
-  if(i!=list_size(&lock->holder->holdedLocks))
-  list_remove (e);
-  if (list_empty (&lock->holder->priOfHoldedLocks)) lock->holder->priority = lock->holder->originalPriority;
-  else{
-    // set priority as max value in priOfHoldedLocks
-    e = list_begin (&lock->holder->priOfHoldedLocks);
-    struct thread *t = list_entry(list_max(&lock->holder->priOfHoldedLocks, compare_priority, NULL) , struct thread , pri);
-    lock->holder->priority = t->priority;
-  }
+  // for (struct list_elem *e = list_begin (&lock->holder->holdedLocks); e != list_end (&lock->holder->holdedLocks); e = list_next (e)) {
+  //    i++;
+  //    struct lock *l = list_entry (e, struct lock, holdMe);
+  //    if (l==lock){
+  //      list_remove (e);
+  //      break;
+  //    }
+  //  }
+  //  struct list_elem *e = list_begin (&lock->holder->priOfHoldedLocks);
+  //  for ( int j=0; j < i; j++)
+  //  {
+  //    e = list_next (e);
+  //  }
+  //  list_remove (e);
+  //  if (list_empty (&lock->holder->priOfHoldedLocks)) lock->holder->priority = lock->holder->originalPriority;
+  //  else{
+  //    // set priority as max value in priOfHoldedLocks
+  //    struct thread *t = list_entry(list_max(&lock->holder->priOfHoldedLocks, compare_priority, NULL) , struct thread , pri);
+  //    lock->holder->priority = t->priority;
+  // }
+  lock->holder->priority=lock->holder->originalPriority;
   lock->holder = NULL;
+
   sema_up (&lock->semaphore);
   thread_yield();
 }
