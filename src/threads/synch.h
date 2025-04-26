@@ -9,6 +9,7 @@ struct semaphore
   {
     unsigned value;             /* Current value. */
     struct list waiters;        /* List of waiting threads. */
+    int mip_thread_waiting;
   };
 struct semaphore_elem{
   struct semaphore semaphore;
