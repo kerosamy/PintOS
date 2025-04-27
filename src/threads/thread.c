@@ -11,6 +11,8 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixed-point.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -30,6 +32,10 @@ static struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
+
+
+//load avg 
+static fixed_point_t load_avg = 0;
 
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
@@ -54,10 +60,12 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -70,6 +78,13 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+
+bool 
+lessthan(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  int a1=list_entry(a,struct thread,elem)->priority;
+  int b1=list_entry(b,struct thread,elem)->priority;
+  return a1<b1; 
+}   
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -123,6 +138,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
+  
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -347,34 +363,126 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  //printf("nice value %d \n",nice);
+  thread_current()->nice_value = nice;
+  return;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice_value ;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return fp_to_int_nearest(mul_mixed(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return fp_to_int_nearest(mul_mixed(thread_current()->recent_cpu,100));
 }
+
+struct list* thread_get_ready_list(void) {
+  return &ready_list;
+}
+
+void thread_update_load_avg(void)
+{
+    int ready_threads = list_size(&ready_list);
+    if (thread_current() != idle_thread)
+    ready_threads++;
+
+    // (59/60) * load_avg
+    fixed_point_t load_avg_part = mul_fp(div_mixed(int_to_fp(59), 60), load_avg);
+
+    // (1/60) * ready_threads
+    fixed_point_t ready_threads_part = mul_fp(div_mixed(int_to_fp(1), 60), int_to_fp(ready_threads));
+
+    load_avg = add_fp(load_avg_part, ready_threads_part);
+}
+void thread_update_recent_cpu(void){
+  struct list_elem *e;
+  thread_update_recent_cpu_per_thread(thread_current());
+  for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, elem); 
+    thread_update_recent_cpu_per_thread(t);
+  }
+
+}
+void thread_update_recent_cpu_per_thread(struct thread *t){
+  int n = t->nice_value;
+  
+  fixed_point_t r = t->recent_cpu, l = load_avg;
+  //printf("wasal %d\n",fp_to_int_nearest(r));
+
+  
+  // (2 * load_avg)
+  fixed_point_t load_avg_scaled = mul_mixed(l, 2);
+  
+  // (2 * load_avg + 1)
+  fixed_point_t denominator = add_mixed(load_avg_scaled, 1);
+  
+  // (2 * load_avg) / (2 * load_avg + 1)
+  fixed_point_t coefficient = div_fp(load_avg_scaled, denominator);
+  
+  // recent_cpu = (coefficient * recent_cpu) + nice
+  r = add_mixed(mul_fp(coefficient, r), n);
+  
+  t->recent_cpu = r;
+  // printf("expp %d\n",fp_to_int_nearest(r));
+  // printf("out put%d\n",thread_get_recent_cpu());
+  
+}
+void thread_update_priority(void) {
+  struct list_elem *e;
+  thread_update_priority_per_thread(thread_current());
+  for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, elem); 
+    thread_update_priority_per_thread(t);
+  }
+}
+
+void thread_update_priority_per_thread(struct thread *t) {
+  int p, n = t->nice_value;
+  fixed_point_t r = t->recent_cpu;
+
+  // printf("nice value2 %d \n", n);
+
+  p = PRI_MAX - (fp_to_int_nearest(div_mixed(r, 4))) - (n * 2);
+  
+   
+  if (p > PRI_MAX)
+    p = PRI_MAX;
+  if (p < PRI_MIN)
+    p = PRI_MIN;
+
+  // printf("prio %d \n", p);
+  // printf("recent %d \n", fp_to_int_nearest(r));
+
+
+  t->priority = p;
+}
+
+void thread_increment_recent_cpu(void) {
+
+  // Ensure we don't update recent_cpu for the idle thread
+  if (thread_current() != idle_thread) {
+    thread_current()->recent_cpu = add_mixed(thread_current()->recent_cpu, 1);  // Increment recent_cpu by 1
+    //printf("kero %d \n",fp_to_int_nearest( thread_current()->recent_cpu));
+    //printf("current : %d\n",fp_to_int_nearest(thread_current()->recent_cpu));
+  }
+}
+
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
@@ -463,7 +571,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -490,11 +597,15 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
+    if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    else{
+      struct list_elem *next_thread = list_max (&ready_list, lessthan, NULL);
+      list_remove(next_thread);
+      return list_entry(next_thread,struct thread,elem);
+    }
 }
+
 
 /* Completes a thread switch by activating the new thread's page
    tables, and, if the previous thread is dying, destroying it.
