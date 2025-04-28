@@ -119,26 +119,34 @@ sema_try_down (struct semaphore *sema)
    and wakes up one thread of those waiting for SEMA, if any.
 
    This function may be called from an interrupt handler. */
-void
-sema_up (struct semaphore *sema) 
-{
-  struct thread *t=NULL;
-  enum intr_level old_level;
-
-  ASSERT (sema != NULL);
-
-  old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) {
-    struct list_elem *tmp=list_max(&sema->waiters,lessfor,0);
-    list_remove(tmp);
-    t=list_entry (tmp,struct thread, elem);
-    thread_unblock (t);
-  }
-  sema->value++;
-  intr_set_level (old_level);
-  thread_yield(); 
-}
-
+   void
+   sema_up (struct semaphore *sema)
+   {
+     enum intr_level old_level;
+     struct thread *unblocked_thread = NULL;
+     
+     ASSERT (sema != NULL);
+     old_level = intr_disable ();
+     
+     if (!list_empty (&sema->waiters))
+     {
+       unblocked_thread = list_entry (list_pop_front (&sema->waiters),
+                                     struct thread, elem);
+       thread_unblock (unblocked_thread);
+     }
+     
+     sema->value++;
+     
+     intr_set_level (old_level);  // Restore interrupt level
+     
+     /* If we're not in an interrupt context and we unblocked a thread,
+        yield if the unblocked thread has higher priority */
+     if (!intr_context() && unblocked_thread != NULL)
+     {
+       if (unblocked_thread->priority > thread_current()->priority)
+         thread_yield();
+     }
+   }
 static void sema_test_helper (void *sema_);
 
 /* Self-test for semaphores that makes control "ping-pong"
@@ -283,8 +291,8 @@ lock_release (struct lock *lock)
   
   lock->holder=NULL;
   sema_up (&lock->semaphore);
-   intr_set_level(old_level);
-  thread_yield();
+  intr_set_level(old_level);
+ 
 }
 
 /* Returns true if the current thread holds LOCK, false

@@ -70,7 +70,6 @@ struct sleep_handler {
   struct list_elem elem;
   int64_t wakeup_time;
   struct semaphore blocker;
-  struct thread* thread;       
 };
 
 
@@ -86,12 +85,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-bool 
-lessthan(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
-  int a1=list_entry(a,struct thread,elem)->priority;
-  int b1=list_entry(b,struct thread,elem)->priority;
-  return a1<b1; 
-}   
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -434,7 +428,7 @@ void thread_update_load_avg(void)
 
     load_avg = add_fp(load_avg_part, ready_threads_part);
 }
-void thread_update_recent_cpu(struct list *sleeping_threads){
+void thread_update_recent_cpu(){
   struct list_elem *e;
   for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, allelem); 
@@ -466,7 +460,7 @@ void thread_update_recent_cpu_per_thread(struct thread *t){
   // printf("out put%d\n",thread_get_recent_cpu());
   
 }
-void thread_update_priority(struct list *sleeping_threads) {
+void thread_update_priority() {
   struct list_elem *e;
   for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, allelem); 

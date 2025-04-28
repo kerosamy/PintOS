@@ -44,22 +44,11 @@ struct list sleeping_threads;
       struct list_elem elem;
       int64_t wakeup_time;
       struct semaphore blocker;
-      struct thread* thread;       
   };
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 
-static struct list sleeping_threads;
-
-   /* A new data structure will be created 
-     to keep track of each blocked thread & its wake up time*/
-     struct sleep_handler {
-      struct list_elem elem;
-      int64_t wakeup_time;
-      struct semaphore blocker;
-      struct thread *thread;  // Add this to access the thread's priority
-  };
 void
 timer_init (void) 
 {
@@ -130,7 +119,6 @@ timer_sleep (int64_t ticks)
     }
     
     sleeper->wakeup_time = start + ticks;
-    sleeper->thread = thread_current();
     sema_init(&sleeper->blocker, 0);
     
     enum intr_level old_level = intr_disable();
@@ -233,11 +221,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
     if(thread_mlfqs){ 
       thread_increment_recent_cpu();     
       if(ticks%4==0){
-       thread_update_priority(&sleeping_threads);
+       thread_update_priority();
       }
       if(ticks%TIMER_FREQ==0){
 
-        thread_update_recent_cpu(&sleeping_threads); 
+        thread_update_recent_cpu(); 
 
         thread_update_load_avg();
         
