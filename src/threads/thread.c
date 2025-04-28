@@ -343,9 +343,9 @@ thread_set_priority (int new_priority)
 {
   enum intr_level old_level;
   struct thread *thread = thread_current ();
-  printf("\n%d %d\n",thread->priority,thread->originalPriority); 
-  old_level = intr_disable ();
   
+  old_level = intr_disable ();
+
   if (new_priority > thread->priority||thread->originalPriority==thread->priority)
     thread->priority = new_priority;  
   thread->originalPriority = new_priority;
@@ -482,15 +482,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->isDonated = false;
   list_init (&t->holdedLocks);
   list_init (&t->priOfHoldedLocks);
-  list_init (&t->wantedLocks);
+  list_init (&t->wantedLock);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
   t->magic = THREAD_MAGIC;
 }
 
-/* Allocates a SIZE-byte frame at the top of thread T's stack and
-   returns a pointer to the frame's base. */
 static void *
 alloc_frame (struct thread *t, size_t size) 
 {
@@ -519,22 +517,7 @@ next_thread_to_run (void)
   }
 }
 
-/* Completes a thread switch by activating the new thread's page
-   tables, and, if the previous thread is dying, destroying it.
 
-   At this function's invocation, we just switched from thread
-   PREV, the new thread is already running, and interrupts are
-   still disabled.  This function is normally invoked by
-   thread_schedule() as its final action before returning, but
-   the first time a thread is scheduled it is called by
-   switch_entry() (see switch.S).
-
-   It's not safe to call printf() until the thread switch is
-   complete.  In practice that means that printf()s should be
-   added at the end of the function.
-
-   After this function and its caller returns, the thread switch
-   is complete. */
 void
 thread_schedule_tail (struct thread *prev)
 {

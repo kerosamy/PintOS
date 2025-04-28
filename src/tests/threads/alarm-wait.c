@@ -1,7 +1,3 @@
-/* Creates N threads, each of which sleeps a different, fixed
-   duration, M times.  Records the wake-up order and verifies
-   that it is valid. */
-
 #include <stdio.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"
@@ -23,7 +19,7 @@ test_alarm_multiple (void)
 {
   test_sleep (5, 7);
 }
-
+
 /* Information about the test. */
 struct sleep_test 
   {

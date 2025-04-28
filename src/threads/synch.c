@@ -202,62 +202,33 @@ lock_init (struct lock *lock)
 
 void 
 update_priorities (struct lock *lock) {
-  if (lock->holder == NULL || list_empty (&lock->holder->wantedLocks) ) return;
-  for (struct list_elem *e = list_begin (&lock->holder->wantedLocks); e != list_end (&lock->holder->wantedLocks); e = list_next (e)) {
-    struct lock *l = list_entry (e, struct lock, wantMe);
-    if (l->holder->priority < lock->holder->priority){
-      l->holder->priority = lock->holder->priority;
-    }
-    update_priorities (l);
+  if (lock->holder == NULL || lock->holder->wantedLock==NULL ) return;
+  struct lock *l = lock->holder->wantedLock;
+  if (l->holder->priority < lock->holder->priority){
+    l->holder->priority = lock->holder->priority;
   }
+  update_priorities (l);
   return ;
 }
-/* Acquires LOCK, sleeping until it becomes available if
-   necessary.  The lock must not already be held by the current
-   thread.
 
-   This function may sleep, so it must not be called within an
-   interrupt handler.  This function may be called with
-   interrupts disabled, but interrupts will be turned back on if
-   we need to sleep. */
-
-   // for (struct list_elem *e = list_begin (&lock->holder->holdedLocks); e != list_end (&lock->holder->holdedLocks); e = list_next (e)) {
-  //    i++;
-  //    struct lock *l = list_entry (e, struct lock, holdMe);
-  //    if (l==lock){
-  //      list_remove (e);
-  //      break;
-  //    }
-  //  }
-  //  struct list_elem *e = list_begin (&lock->holder->priOfHoldedLocks);
-  //  for ( int j=0; j < i; j++)
-  //  {
-  //    e = list_next (e);
-  //  }
-  //  list_remove (e);
-  //  if (list_empty (&lock->holder->priOfHoldedLocks)) lock->holder->priority = lock->holder->originalPriority;
-  //  else{
-  //    // set priority as max value in priOfHoldedLocks
-  //    struct thread *t = list_entry(list_max(&lock->holder->priOfHoldedLocks, compare_priority, NULL) , struct thread , pri);
-  //    lock->holder->priority = t->priority;
-  // }
 void
 lock_acquire (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock)); // lw nzlna l t7t ---> ezn el holder m4 el current thread  ]
-
+  thread_current()->wantedLock=NULL;
   if (lock->holder !=NULL) {
   if ( lock->holder->priority < thread_current()->priority ) {
     lock->holder->priority = thread_current()->priority;
     }
-    list_push_back(&(thread_current()->wantedLocks), &(lock->wantMe));
     update_priorities (lock);
   }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  thread_current()->wantedLock=NULL;
   list_push_back(&(thread_current()->holdedLocks), &(lock->holdMe));
+
   thread_yield();
 }
 
@@ -305,11 +276,10 @@ lock_release (struct lock *lock)
   }else{
     thread_current()->priority=thread_current()->originalPriority;
   }
-  printf("\n%d\n",thread_current()->priority); 
   if(thread_current()->originalPriority>thread_current()->priority){
     thread_current()->priority=thread_current()->originalPriority;
   }
-
+  
   lock->holder=NULL;
   sema_up (&lock->semaphore);
    intr_set_level(old_level);
