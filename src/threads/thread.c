@@ -418,18 +418,9 @@ void thread_update_load_avg(void)
 }
 void thread_update_recent_cpu(struct list *sleeping_threads){
   struct list_elem *e;
-  thread_update_recent_cpu_per_thread(thread_current());
-  for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
-    struct thread *t = list_entry(e, struct thread, elem); 
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, allelem); 
     thread_update_recent_cpu_per_thread(t);
-  }
-
-  if (sleeping_threads != NULL) {
-    for (e = list_begin(sleeping_threads); e != list_end(sleeping_threads); e = list_next(e)) {
-      struct sleep_handler *sh = list_entry(e, struct sleep_handler, elem);
-      struct thread *t = sh->thread;  
-      thread_update_recent_cpu_per_thread(t);
-    }
   }
 
 }
@@ -459,22 +450,11 @@ void thread_update_recent_cpu_per_thread(struct thread *t){
 }
 void thread_update_priority(struct list *sleeping_threads) {
   struct list_elem *e;
-  thread_update_priority_per_thread(thread_current());
-  for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
-    struct thread *t = list_entry(e, struct thread, elem); 
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, allelem); 
     thread_update_priority_per_thread(t);
   }
-  if (sleeping_threads != NULL) {
-    printf("DDD\n");
-    for (e = list_begin(sleeping_threads); e != list_end(sleeping_threads); e = list_next(e)) {
-      struct sleep_handler *sh = list_entry(e, struct sleep_handler, elem);
-      struct thread *t = sh->thread; 
-      printf("recent cpu : %d \n",fp_to_int_nearest(t->recent_cpu) ) ;
-      printf("prio  : %d \n",t->priority ) ;
-      printf("nice  : %d \n",t->nice_value ) ;
-      thread_update_priority_per_thread(t);
-    }
-  }
+
 }
 
 void thread_update_priority_per_thread(struct thread *t) {
