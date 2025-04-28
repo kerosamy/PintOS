@@ -217,8 +217,9 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock)); // lw nzlna l t7t ---> ezn el holder m4 el current thread  ]
-  thread_current()->wantedLock=NULL;
+  
   if (lock->holder !=NULL) {
+    thread_current()->wantedLock=lock;
   if ( lock->holder->priority < thread_current()->priority ) {
     lock->holder->priority = thread_current()->priority;
     }
