@@ -49,6 +49,17 @@ struct list sleeping_threads;
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
+
+static struct list sleeping_threads;
+
+   /* A new data structure will be created 
+     to keep track of each blocked thread & its wake up time*/
+     struct sleep_handler {
+      struct list_elem elem;
+      int64_t wakeup_time;
+      struct semaphore blocker;
+      struct thread *thread;  // Add this to access the thread's priority
+  };
 void
 timer_init (void) 
 {

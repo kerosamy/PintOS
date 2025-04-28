@@ -106,6 +106,12 @@ lessthan(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
 
    It is not safe to call thread_current() until this function
    finishes. */
+bool 
+lessthan(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  int a1=list_entry(a,struct thread,elem)->priority;
+  int b1=list_entry(b,struct thread,elem)->priority;
+  return a1<b1; 
+}      
 void
 thread_init (void) 
 {
@@ -223,7 +229,9 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  if ( t != NULL && thread_current()->priority < t->priority) {
+    thread_yield();
+  }
   return tid;
 }
 
@@ -356,15 +364,25 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_priority (int new_priority) 
+thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
-}
+  enum intr_level old_level;
+  struct thread *thread = thread_current ();
+  
+  old_level = intr_disable ();
 
+  if (new_priority > thread->priority||thread->originalPriority==thread->priority)
+    thread->priority = new_priority;  
+  thread->originalPriority = new_priority;
+   
+  intr_set_level (old_level); 
+  thread_yield ();
+}
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
+ 
   return thread_current ()->priority;
 }
 
@@ -576,14 +594,17 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->magic = THREAD_MAGIC;
+  t->originalPriority = priority;
+  t->isDonated = false;
+  list_init (&t->holdedLocks);
+  list_init (&t->priOfHoldedLocks);
+  list_init (&t->wantedLock);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+  t->magic = THREAD_MAGIC;
 }
 
-/* Allocates a SIZE-byte frame at the top of thread T's stack and
-   returns a pointer to the frame's base. */
 static void *
 alloc_frame (struct thread *t, size_t size) 
 {
