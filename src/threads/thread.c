@@ -66,6 +66,13 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+struct sleep_handler {
+  struct list_elem elem;
+  int64_t wakeup_time;
+  struct semaphore blocker;
+  struct thread* thread;       
+};
+
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -409,12 +416,20 @@ void thread_update_load_avg(void)
 
     load_avg = add_fp(load_avg_part, ready_threads_part);
 }
-void thread_update_recent_cpu(void){
+void thread_update_recent_cpu(struct list *sleeping_threads){
   struct list_elem *e;
   thread_update_recent_cpu_per_thread(thread_current());
   for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, elem); 
     thread_update_recent_cpu_per_thread(t);
+  }
+
+  if (sleeping_threads != NULL) {
+    for (e = list_begin(sleeping_threads); e != list_end(sleeping_threads); e = list_next(e)) {
+      struct sleep_handler *sh = list_entry(e, struct sleep_handler, elem);
+      struct thread *t = sh->thread;  
+      thread_update_recent_cpu_per_thread(t);
+    }
   }
 
 }
@@ -442,12 +457,23 @@ void thread_update_recent_cpu_per_thread(struct thread *t){
   // printf("out put%d\n",thread_get_recent_cpu());
   
 }
-void thread_update_priority(void) {
+void thread_update_priority(struct list *sleeping_threads) {
   struct list_elem *e;
   thread_update_priority_per_thread(thread_current());
   for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, elem); 
     thread_update_priority_per_thread(t);
+  }
+  if (sleeping_threads != NULL) {
+    printf("DDD\n");
+    for (e = list_begin(sleeping_threads); e != list_end(sleeping_threads); e = list_next(e)) {
+      struct sleep_handler *sh = list_entry(e, struct sleep_handler, elem);
+      struct thread *t = sh->thread; 
+      printf("recent cpu : %d \n",fp_to_int_nearest(t->recent_cpu) ) ;
+      printf("prio  : %d \n",t->priority ) ;
+      printf("nice  : %d \n",t->nice_value ) ;
+      thread_update_priority_per_thread(t);
+    }
   }
 }
 
