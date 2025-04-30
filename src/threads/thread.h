@@ -95,17 +95,16 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     int originalPriority;                        /* Donated priority. */
+    //
+    int nice_value ; 
+    fixed_point_t recent_cpu;
+    //
     bool isDonated;                     /* Is the thread donated? */
     struct list holdedLocks;           /* List of locks held by the thread. */
     struct list priOfHoldedLocks;      /* List of priorities of locks held by the thread. */
     struct lock* wantedLock;           /* List of locks wanted by the thread. */
     struct list_elem allelem;           /* List element for all threads list. */
     struct list_elem pri ;              /* List element for priority list. */
-
-    //
-    int nice_value ; 
-    fixed_point_t recent_cpu;
-    //
 
 
     /* Shared between thread.c and synch.c. */
