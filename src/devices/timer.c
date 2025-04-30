@@ -212,39 +212,45 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
-static void
-timer_interrupt (struct intr_frame *args UNUSED)
+/* Timer interrupt handler */
+void timer_interrupt(struct intr_frame *args UNUSED)
 {
-
     ticks++;
-    thread_tick ();
-    if(thread_mlfqs){ 
-      thread_increment_recent_cpu();     
-      if(ticks%4==0){
-       thread_update_priority();
-      }
-      if(ticks%TIMER_FREQ==0){
+    thread_tick();
 
-        thread_update_recent_cpu(); 
-
-        thread_update_load_avg();
-        
-      }
+    if (thread_mlfqs) {
+        // Increment recent_cpu for current thread
+        thread_increment_recent_cpu();
+        // Every second (TIMER_FREQ ticks), update load_avg and recent_cpu for all threads
+        if (ticks % TIMER_FREQ == 0) {
+            enum intr_level old_level = intr_disable();
+            thread_update_load_avg();
+            thread_update_recent_cpu();
+            intr_set_level(old_level);
+        }
+        // Every 4 ticks, update priority for all threads
+        if (ticks % 4 == 0) {
+            enum intr_level old_level = intr_disable();
+            thread_update_priority();
+            intr_set_level(old_level);
+        }
     }
 
+    // Wake up sleeping threads
     enum intr_level old_level = intr_disable();
     struct list_elem *e = list_begin(&sleeping_threads);
     while (e != list_end(&sleeping_threads)) {
         struct sleep_handler *sleeper = list_entry(e, struct sleep_handler, elem);
-        
-        if (sleeper->wakeup_time > ticks) break;
+
+        if (sleeper->wakeup_time > ticks)
+            break;
+
         if (sleeper->wakeup_time <= ticks) {
-            e = list_remove(e);  // Remove and get the next element
+            e = list_remove(e);  // Remove and move to next element
             sema_up(&sleeper->blocker);
-        } 
+        }
     }
     intr_set_level(old_level);
-   
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
