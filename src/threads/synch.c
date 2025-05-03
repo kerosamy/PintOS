@@ -82,6 +82,9 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       list_push_back (&sema->waiters, &thread_current ()->elem);   
+      if(&sema->mip_thread_waiting<thread_current()->priority){
+        sema->mip_thread_waiting=thread_current()->priority;
+      }
       thread_block ();
     }
   sema->value--;
@@ -131,6 +134,7 @@ sema_try_down (struct semaphore *sema)
      {
        struct list_elem *t= list_max(&sema->waiters,lessfor,NULL);
        list_remove(t);
+       sema->mip_thread_waiting=list_entry(list_max(&sema->waiters,lessfor,NULL),struct thread,elem)->priority;
        unblocked_thread = list_entry (t,
                                      struct thread, elem);
        thread_unblock (unblocked_thread);
@@ -269,7 +273,7 @@ lock_try_acquire (struct lock *lock)
    bool compare_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
     struct lock *t1 = list_entry (a, struct lock, holdMe);
     struct lock *t2 = list_entry (b, struct lock, holdMe);
-    return list_entry(list_max(&t1->semaphore.waiters,lessfor,NULL),struct thread,elem)->priority<list_entry(list_max(&t2->semaphore.waiters,lessfor,NULL),struct thread,elem)->priority;
+    return t1->semaphore.mip_thread_waiting<t2->semaphore.mip_thread_waiting;
   }
 void
 lock_release (struct lock *lock) 

@@ -104,8 +104,7 @@ struct thread
     struct list priOfHoldedLocks;      /* List of priorities of locks held by the thread. */
     struct lock* wantedLock;           /* List of locks wanted by the thread. */
     struct list_elem allelem;           /* List element for all threads list. */
-    struct list_elem pri ;              /* List element for priority list. */
-
+   
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
